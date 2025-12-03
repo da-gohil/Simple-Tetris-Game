@@ -16,6 +16,7 @@ public class Main {
 
         window.setLocationRelativeTo(null); //We do not set specific location on the screen
         window.setVisible(true);
+        //Launching the GamePanel Frame in main class
         gamePanel.launchGame();
     }
 }
