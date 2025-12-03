@@ -11,25 +11,19 @@ public class Mino {
     public Block[] b = new Block[4];
     public Block[] tempB = new Block[4];
     int autoDropCounter = 0;
-
-    public int direction = 1; // There are 4 direction(1/2/3/4)
+    public int direction = 1; // 1 to 4
+    boolean leftCollision, rightCollision, downCollision;
 
     public void create(Color color) {
-        b[0] = new Block(color);
-        b[1] = new Block(color);
-        b[2] = new Block(color);
-        b[3] = new Block(color);
-
-        tempB[0] = new Block(color);
-        tempB[1] = new Block(color);
-        tempB[2] = new Block(color);
-        tempB[3] = new Block(color);
+        for (int i = 0; i < 4; i++) {
+            b[i] = new Block(color);
+            tempB[i] = new Block(color);
+        }
     }
 
     public void setXY(int x, int y) {
-
+        // Implemented in subclasses
     }
-
 
     public void updateXY(int direction) {
         // Apply rotated tempB[] to b[]
@@ -37,26 +31,47 @@ public class Mino {
             b[i].x = tempB[i].x;
             b[i].y = tempB[i].y;
         }
-
-        // Update current direction
-        this.direction = direction + 1;
-
-        // Wrap back to 1-4
-        if (this.direction > 4) {
-            this.direction = 1;
-        }
+        this.direction = direction;
+        if (this.direction > 4) this.direction = 1;
+        else if (this.direction < 1) this.direction = 4;
     }
-
 
     public void getDirection1(){}
     public void getDirection2(){}
     public void getDirection3(){}
     public void getDirection4(){}
 
+    // -----------------------------
+    // COLLISION CHECKS
+    // -----------------------------
+    public void checkMovementCollision() {
+        leftCollision = rightCollision = downCollision = false;
 
+        for (Block block : b) {
+            if (block.x <= PlayManager.left_x) leftCollision = true;
+            if (block.x >= PlayManager.right_x) rightCollision = true;
+            if (block.y >= PlayManager.bottom_y) downCollision = true;
+        }
+    }
+
+    public boolean canRotate() {
+        for (Block block : tempB) {
+            if (block.x < PlayManager.left_x ||
+                    block.x > PlayManager.right_x ||
+                    block.y > PlayManager.bottom_y) {
+                return false;
+            }
+            // TODO: add collision with placed blocks here if needed
+        }
+        return true;
+    }
+
+    // -----------------------------
+    // UPDATE MINO (MOVEMENT & ROTATION)
+    // -----------------------------
     public void update() {
 
-        // ROTATE The Mino
+        // ROTATE
         if (KeyHandler.upPressed) {
             switch (direction) {
                 case 1: getDirection1(); break;
@@ -64,55 +79,48 @@ public class Mino {
                 case 3: getDirection3(); break;
                 case 4: getDirection4(); break;
             }
+            if (canRotate()) updateXY(direction);
             KeyHandler.upPressed = false;
         }
 
+        // CHECK COLLISION BEFORE MOVEMENT
+        checkMovementCollision();
+
         // SOFT DROP
-        if (KeyHandler.downPressed) {
-            b[0].y += Block.SIZE;
-            b[1].y += Block.SIZE;
-            b[2].y += Block.SIZE;
-            b[3].y += Block.SIZE;
+        if (KeyHandler.downPressed && !downCollision) {
+            for (Block block : b) block.y += Block.SIZE;
+            autoDropCounter = 0;
             KeyHandler.downPressed = false;
         }
 
         // MOVE LEFT
-        if (KeyHandler.leftPressed) {
-            b[0].x -= Block.SIZE;
-            b[1].x -= Block.SIZE;
-            b[2].x -= Block.SIZE;
-            b[3].x -= Block.SIZE;
-            KeyHandler.leftPressed = false;   // one move per press
+        if (KeyHandler.leftPressed && !leftCollision) {
+            for (Block block : b) block.x -= Block.SIZE;
+            KeyHandler.leftPressed = false;
         }
 
         // MOVE RIGHT
-        if (KeyHandler.rightPressed) {
-            b[0].x += Block.SIZE;
-            b[1].x += Block.SIZE;
-            b[2].x += Block.SIZE;
-            b[3].x += Block.SIZE;
-            KeyHandler.rightPressed = false;  // one move per press
+        if (KeyHandler.rightPressed && !rightCollision) {
+            for (Block block : b) block.x += Block.SIZE;
+            KeyHandler.rightPressed = false;
         }
 
         // AUTO DROP
         autoDropCounter++;
-        if (autoDropCounter == PlayManager.dropInterval) {
-            b[0].y += Block.SIZE;
-            b[1].y += Block.SIZE;
-            b[2].y += Block.SIZE;
-            b[3].y += Block.SIZE;
+        if (autoDropCounter >= PlayManager.dropInterval && !downCollision) {
+            for (Block block : b) block.y += Block.SIZE;
             autoDropCounter = 0;
         }
     }
 
+    // -----------------------------
+    // DRAW MINO
+    // -----------------------------
     public void draw(Graphics2D g2d) {
-
         int margin = 2;
-        g2d.setColor(b[0].color);
-
-        g2d.fillRect(b[0].x + margin, b[0].y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
-        g2d.fillRect(b[1].x + margin, b[1].y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
-        g2d.fillRect(b[2].x + margin, b[2].y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
-        g2d.fillRect(b[3].x + margin, b[3].y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
+        for (Block block : b) {
+            g2d.setColor(block.color);
+            g2d.fillRect(block.x + margin, block.y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
+        }
     }
 }
