@@ -79,13 +79,22 @@ public class PlayManager {
         g2.drawRect(x, y, 200, 200);
 
         g2.setFont(new Font("ARIAL", Font.PLAIN, 30));
-        // g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g2.drawString("NEXT", x + 60, y + 60);
 
         // Draw the current Mino
         if (currentMino != null) {
             currentMino.draw(g2); // Now correctly passing Graphics2D
+        }
+
+        //Draw Pause
+        g2.setColor(Color.YELLOW);
+        g2.setFont(g2.getFont().deriveFont(50f));
+        if(KeyHandler.pausePressed) {
+            // Calculate position to center the text in the main play area
+            x = left_x + (WIDTH / 2) - 100; // Adjusted for font size (rough center)
+            y = top_y + (HEIGHT / 2);
+            g2.drawString("PAUSED", x, y);
         }
     }
 }
