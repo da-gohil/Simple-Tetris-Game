@@ -1,6 +1,8 @@
 package mino;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
 
 public class Block extends Rectangle {
     public int x, y;
