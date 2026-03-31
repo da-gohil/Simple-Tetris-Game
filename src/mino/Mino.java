@@ -13,6 +13,7 @@ public class Mino {
     int autoDropCounter = 0;
     public int direction = 1; // 1 to 4
     boolean leftCollision, rightCollision, downCollision;
+    public boolean active = true;
 
     public void create(Color color) {
         for (int i = 0; i < 4; i++) {
@@ -25,45 +26,83 @@ public class Mino {
         // Implemented in subclasses
     }
 
-    public void updateXY(int direction) {
-        // Apply rotated tempB[] to b[]
+    // Apply tempB positions to b and update direction — no collision check here.
+    // Call checkRotationCollision() before calling this.
+    public void updateXY(int newDirection) {
         for (int i = 0; i < 4; i++) {
             b[i].x = tempB[i].x;
             b[i].y = tempB[i].y;
         }
-        this.direction = direction;
+        this.direction = newDirection;
         if (this.direction > 4) this.direction = 1;
         else if (this.direction < 1) this.direction = 4;
     }
 
-    public void getDirection1(){}
-    public void getDirection2(){}
-    public void getDirection3(){}
-    public void getDirection4(){}
+    // Subclasses set tempB[] to the rotated positions for each direction.
+    // Do NOT call updateXY() inside these — rotation application is handled in update().
+    public void getDirection1() {}
+    public void getDirection2() {}
+    public void getDirection3() {}
+    public void getDirection4() {}
 
     // -----------------------------
     // COLLISION CHECKS
     // -----------------------------
+
+    // Checks whether the current b[] positions collide with walls or static blocks
+    // for movement purposes (one step ahead: left, right, down).
     public void checkMovementCollision() {
         leftCollision = rightCollision = downCollision = false;
 
-        for (Block block : b) {
-            if (block.x <= PlayManager.left_x) leftCollision = true;
-            if (block.x >= PlayManager.right_x) rightCollision = true;
-            if (block.y >= PlayManager.bottom_y) downCollision = true;
+        // Wall / boundary collision
+        for (int i = 0; i < b.length; i++) {
+            if (b[i].x == PlayManager.left_x)               leftCollision  = true;
+            if (b[i].x + Block.SIZE == PlayManager.right_x)  rightCollision = true;
+            if (b[i].y + Block.SIZE == PlayManager.bottom_y)  downCollision  = true;
+        }
+
+        // Static block collision — check one step in each direction
+        for (int i = 0; i < PlayManager.staticBlocks.size(); i++) {
+            int targetX = PlayManager.staticBlocks.get(i).x;
+            int targetY = PlayManager.staticBlocks.get(i).y;
+
+            for (int i1 = 0; i1 < b.length; i1++) {
+                // Moving down: bottom of b[i1] would land on top of target
+                if (b[i1].x == targetX && b[i1].y + Block.SIZE == targetY)
+                    downCollision = true;
+                // Moving left: left edge of b[i1] would enter target column
+                if (b[i1].x - Block.SIZE == targetX && b[i1].y == targetY)
+                    leftCollision = true;
+                // Moving right: right edge of b[i1] would enter target column
+                if (b[i1].x + Block.SIZE == targetX && b[i1].y == targetY)
+                    rightCollision = true;
+            }
         }
     }
 
-    public boolean canRotate() {
-        for (Block block : tempB) {
-            if (block.x < PlayManager.left_x ||
-                    block.x > PlayManager.right_x ||
-                    block.y > PlayManager.bottom_y) {
-                return false;
-            }
-            // TODO: add collision with placed blocks here if needed
+    // Checks whether the rotated tempB[] positions collide with walls or static blocks.
+    // Uses overlap detection (exact position match) for static blocks.
+    public void checkRotationCollision() {
+        leftCollision = rightCollision = downCollision = false;
+
+        // Boundary collision on rotated positions
+        for (int i = 0; i < tempB.length; i++) {
+            if (tempB[i].x < PlayManager.left_x)              leftCollision  = true;
+            if (tempB[i].x + Block.SIZE > PlayManager.right_x) rightCollision = true;
+            if (tempB[i].y + Block.SIZE > PlayManager.bottom_y) downCollision = true;
+            if (tempB[i].y < PlayManager.top_y)               downCollision  = true; // above top
         }
-        return true;
+
+        // Static block overlap — rotation would place a block inside an existing block
+        for (int i = 0; i < PlayManager.staticBlocks.size(); i++) {
+            int targetX = PlayManager.staticBlocks.get(i).x;
+            int targetY = PlayManager.staticBlocks.get(i).y;
+            for (int i1 = 0; i1 < tempB.length; i1++) {
+                if (tempB[i1].x == targetX && tempB[i1].y == targetY) {
+                    downCollision = true; // reuse flag to block the rotation
+                }
+            }
+        }
     }
 
     // -----------------------------
@@ -71,20 +110,38 @@ public class Mino {
     // -----------------------------
     public void update() {
 
-        // ROTATE
+        // ROTATE — set tempB via getDirectionN(), validate, then apply
         if (KeyHandler.upPressed) {
-            switch (direction) {
+            int nextDir = direction + 1;
+            if (nextDir > 4) nextDir = 1;
+
+            switch (nextDir) {
                 case 1: getDirection1(); break;
                 case 2: getDirection2(); break;
                 case 3: getDirection3(); break;
                 case 4: getDirection4(); break;
             }
-            if (canRotate()) updateXY(direction);
+
+            checkRotationCollision();
+
+            if (!leftCollision && !rightCollision && !downCollision) {
+                updateXY(nextDir);
+            }
+
             KeyHandler.upPressed = false;
         }
 
-        // CHECK COLLISION BEFORE MOVEMENT
+        // Refresh movement collision state before applying inputs
         checkMovementCollision();
+
+        // HARD DROP — slam piece to the bottom instantly
+        if (KeyHandler.enterPressed) {
+            while (!downCollision) {
+                for (Block block : b) block.y += Block.SIZE;
+                checkMovementCollision();
+            }
+            KeyHandler.enterPressed = false;
+        }
 
         // SOFT DROP
         if (KeyHandler.downPressed && !downCollision) {
@@ -105,11 +162,15 @@ public class Mino {
             KeyHandler.rightPressed = false;
         }
 
-        // AUTO DROP
-        autoDropCounter++;
-        if (autoDropCounter >= PlayManager.dropInterval && !downCollision) {
-            for (Block block : b) block.y += Block.SIZE;
-            autoDropCounter = 0;
+        if (downCollision) {
+            active = false;
+        } else {
+            // AUTO DROP
+            autoDropCounter++;
+            if (autoDropCounter >= PlayManager.dropInterval) {
+                for (Block block : b) block.y += Block.SIZE;
+                autoDropCounter = 0;
+            }
         }
     }
 
@@ -120,7 +181,8 @@ public class Mino {
         int margin = 2;
         for (Block block : b) {
             g2d.setColor(block.color);
-            g2d.fillRect(block.x + margin, block.y + margin, Block.SIZE - margin * 2, Block.SIZE - margin * 2);
+            g2d.fillRect(block.x + margin, block.y + margin,
+                         Block.SIZE - margin * 2, Block.SIZE - margin * 2);
         }
     }
 }
