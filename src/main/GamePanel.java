@@ -2,31 +2,27 @@ package main;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
 
 public class GamePanel extends JPanel implements Runnable {
 
-    public static final int WIDTH = 1280;
+    public static final int WIDTH  = 1280;
     public static final int HEIGHT = 720;
     final int FPS = 60;
+
     Thread gameThread;
     PlayManager playManager;
 
     public GamePanel() {
         this.setPreferredSize(new Dimension(WIDTH, HEIGHT));
-        this.setBackground(Color.black);
+        this.setBackground(Color.BLACK);
         this.setLayout(null);
 
-        //implement KeyListener
         this.addKeyListener(new KeyHandler());
         this.setFocusable(true);
 
         playManager = new PlayManager();
-
     }
 
-    //We launch the game here, by activating this thread
-    //When a thread starts it automatically calls the run method
     public void launchGame() {
         gameThread = new Thread(this);
         gameThread.start();
@@ -34,19 +30,16 @@ public class GamePanel extends JPanel implements Runnable {
 
     @Override
     public void run() {
-
-        // Game Loop
-        double drawInterval = 100000000/FPS;
+        double drawInterval = 1_000_000_000.0 / FPS;
         double delta = 0;
         long lastTime = System.nanoTime();
-        long currentTime;
 
-        while(gameThread != null) {
-            currentTime = System.nanoTime();
-
-            delta += (currentTime - lastTime)/drawInterval;
+        while (gameThread != null) {
+            long currentTime = System.nanoTime();
+            delta += (currentTime - lastTime) / drawInterval;
             lastTime = currentTime;
-            if(delta >= 1) {
+
+            if (delta >= 1) {
                 update();
                 repaint();
                 delta--;
@@ -54,16 +47,23 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
 
-    private void update(){
-        if(KeyHandler.pausePressed == false) {
+    private void update() {
+        // Restart takes priority — works even during pause or game over
+        if (KeyHandler.restartPressed) {
+            playManager = new PlayManager();
+            KeyHandler.pausePressed  = false;
+            KeyHandler.restartPressed = false;
+            return;
+        }
+
+        if (!KeyHandler.pausePressed) {
             playManager.update();
         }
     }
 
-    public void paintComponent(Graphics g){
+    @Override
+    public void paintComponent(Graphics g) {
         super.paintComponent(g);
-
-        Graphics2D g2d = (Graphics2D) g;
-        playManager.draw(g2d);
+        playManager.draw(g);
     }
 }
